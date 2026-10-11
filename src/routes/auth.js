@@ -49,6 +49,13 @@ router.post('/login', limiter, asyncHandler(async (req, res) => {
   const ok = await bcrypt.compare(password, user ? user.passwordHash : DUMMY_HASH);
   if (!user || !ok || !user.active) throw new HttpError(401, 'Invalid email or password');
 
+    // Each sign-in page sends its own "portal", so employees and reviewers cannot use each other's page
+  const portal = req.body?.portal;
+  if (portal === 'reviewer' && user.role !== 'reviewer')
+    throw new HttpError(403, 'This is not a reviewer account. Please use the employee sign in.');
+  if (portal === 'employee' && user.role === 'reviewer')
+    throw new HttpError(403, 'This is a reviewer account. Please use the reviewer sign in.');
+
   res.json({ token: signToken(user), user: user.toPublic() });
 }));
 
