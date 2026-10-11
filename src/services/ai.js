@@ -1,12 +1,12 @@
 // AI layer: classify the claim, explain it, cite policy sections, ask for missing info.
 // The model only sees the policy sections we retrieved, and every citation it returns is
 // checked against that list. Deterministic validation always overrides the AI's verdict.
-import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenAI } from '@google/genai';
 import { CATEGORIES, POLICY } from '../config/policy.js';
 import { env } from '../config/env.js';
 import { scoreCategories } from './retrieval.js';
 
-const client = env.anthropicKey ? new Anthropic({ apiKey: env.anthropicKey, timeout: 30_000 }) : null;
+const client = env.geminiKey ? new GoogleGenAI({ apiKey: env.geminiKey, httpOptions: { timeout: 30_000 } }) : null;
 const CATS = Object.keys(CATEGORIES);
 const VERDICTS = ['comply', 'clarify', 'review'];
 const clamp01 = (n) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0);
@@ -131,17 +131,16 @@ export async function analyseClaim({ claim, issues, retrieved, clarifications = 
     retrieved: retrieved.map(({ id, title, score, reason }) => ({ id, title, score, reason })),
     analysedAt: new Date(),
   };
-  if (!client) return { ...ruleBased(claim, issues, retrieved), ...meta, error: 'ANTHROPIC_API_KEY is not set; rules-based fallback used.' };
+  if (!client) return { ...ruleBased(claim, issues, retrieved), ...meta, error: 'GEMINI_API_KEY is not set; rules-based fallback used.' };
 
   try {
-    const msg = await client.messages.create({
-      model: env.model,
-      max_tokens: 1500,
-      system: SYSTEM,
-      messages: [{ role: 'user', content: buildPrompt({ claim, issues, retrieved, clarifications }) }],
+    const response = await client.models.generateContent({
+      model: env.geminiModel,
+      contents: buildPrompt({ claim, issues, retrieved, clarifications }),
+      config: { systemInstruction: SYSTEM, responseMimeType: 'application/json', temperature: 0, maxOutputTokens: 4096 },
     });
-    const text = msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-    return { ...normalize(extractJson(text), retrieved), source: 'claude', model: env.model, ...meta };
+    const text = response.text || ''; // empty if the response was blocked; extractJson then throws and the fallback runs
+    return { ...normalize(extractJson(text), retrieved), source: 'gemini', model: env.geminiModel, ...meta };
   } catch (err) {
     return { ...ruleBased(claim, issues, retrieved), ...meta, error: `AI call failed (${err.message}); rules-based fallback used.` };
   }

@@ -14,7 +14,7 @@ async function main() {
   await connectDb();
   app.listen(env.port, () => {
     console.log(`API listening on http://localhost:${env.port}`);
-    console.log(env.anthropicKey ? `AI: Claude (${env.model})` : 'AI: rules-based fallback (no ANTHROPIC_API_KEY)');
+        console.log(env.geminiKey ? `AI: Gemini (${env.geminiModel})` : 'AI: rules-based fallback (no GEMINI_API_KEY)');
   });
 }
 
