@@ -9,6 +9,7 @@ import { requireAuth } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 const app = express();
+app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors({ origin: env.corsOrigin }));
 app.use(express.json({ limit: '100kb' }));
